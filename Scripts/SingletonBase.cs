@@ -1,17 +1,33 @@
 ﻿using UnityEngine;
+using UnityEngine.SceneManagement;
 
-public abstract class SingletonBase<T> : MonoBehaviour where T : class
+namespace ZnZUtil
 {
-    protected static T instance;
-    public static T getInstance => instance;
-    public virtual void Awake()
+    public abstract class SingletonBase<T> : MonoBehaviour where T : class
     {
-        if (instance == null)
-            instance = this as T;
-        else
+        protected enum SceneMode
         {
-            Debug.LogWarning("Destroyed Singleton Object: " + name);
-            Destroy(this);
+            Unload,
+            DontDestroyOnLoad
+        }
+
+        protected static T instance;
+        public static T getInstance => instance;
+
+        protected virtual SceneMode sceneMode => SceneMode.Unload; // QUEST make it abstract ??
+
+        public virtual void Awake()
+        {
+            if (instance == null)
+                instance = this as T;
+            else
+            {
+                Debug.LogWarning("Destroyed Singleton Object: " + name);
+                Destroy(this);
+            }
+
+            if (sceneMode == SceneMode.Unload) SceneManager.sceneUnloaded += (_) => { instance = null; };
+            else if (sceneMode == SceneMode.DontDestroyOnLoad) DontDestroyOnLoad(this);
         }
     }
 }

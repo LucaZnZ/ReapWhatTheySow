@@ -1,4 +1,6 @@
-﻿namespace ZnZUtil
+﻿using System;
+
+namespace ZnZUtil
 {
     public static class FloatUtil
     {
@@ -21,6 +23,16 @@
                 result = 0;
                 return false;
             }
+        }
+
+        public static float Round(this float number, int decimals)
+        {
+            return (float) Math.Round(number, decimals);
+        }
+
+        public static int RoundToInt(this float number)
+        {
+            return (int) Math.Round(number);
         }
     }
 }

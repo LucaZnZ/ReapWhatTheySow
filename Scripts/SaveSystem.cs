@@ -1,113 +1,125 @@
 ﻿using System;
-using UnityEngine;
 using System.IO;
-using System.Xml.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
+using System.Xml.Serialization;
+using UnityEngine;
+// TODO fix this, it has issues on build time
+// using Unity.VisualScripting.YamlDotNet.Serialization;
+// using Unity.VisualScripting.YamlDotNet.Serialization.NamingConventions;
 
-public static class SaveSystem
+namespace ZnZUtil
 {
-    public static void SaveToXML<T>(T data, string filepath)
+    public static class SaveSystem
     {
-        if(filepath == string.Empty || data == null)
+        public static void SaveToXML<T>(T data, string filepath)
+            => Save(new XmlSaveSerializer<T>(), filepath, data);
+
+        public static T LoadFromXML<T>(string filepath) where T : class
+            => Load(new XmlSaveSerializer<T>(), filepath);
+
+        public static void SaveBinary<T>(T data, string filepath)
+            => Save(new BinarySaveSerializer<T>(), filepath, data);
+
+        public static T LoadBinary<T>(string filepath)
+            => Load(new BinarySaveSerializer<T>(), filepath);
+
+        // public static void SaveYaml<T>(T data, string filepath)
+        //     => Save(new YamlSaveSerializer<T>(), filepath, data);
+        //
+        // public static T LoadYaml<T>(string filepath)
+        //     => Load(new YamlSaveSerializer<T>(), filepath);
+
+
+        private static void Save<T>(ISaveSerializer<T> serializer, string filepath, T data)
         {
-            Debug.LogError("SaveSystem::No data or filepath received for saving xml");
-            return;
-        }
+            if (filepath == string.Empty || data == null)
+            {
+                Debug.LogError("SaveSystem::No data or filepath received for saving binary");
+                return;
+            }
 
-        Debug.Log("SaveSystem::Saving xml file: " + filepath);
+            Debug.Log("SaveSystem::Saving binary file: " + filepath);
 
-        var xmlSerializer = new XmlSerializer(typeof(T));   // create the serializer
-
-        using (FileStream stream = new FileStream(filepath, FileMode.Create, FileAccess.Write))     // open filestream
-        {
+            using FileStream stream = new FileStream(filepath, FileMode.Create, FileAccess.Write);
             try
             {
-                xmlSerializer.Serialize(stream, data);
+                serializer.Save(stream, data);
             }
             catch (Exception e)
             {
-                Debug.LogError($"SaveSystem::Failed saving xml file {filepath} /n{e.Message}");
+                Debug.LogError(
+                    $"SaveSystem::Failed saving binary file of type {typeof(T)} at {filepath} /n{e.Message}");
             }
         }
-    }
-    public static T LoadFromXML<T>(string filepath) where T : class
-    {
-        if (filepath == string.Empty)
+
+        private static T Load<T>(ISaveSerializer<T> serializer, string filepath)
         {
-            Debug.LogError("SaveSystem::No filepath received for loading xml");
-            return default(T);
-        }
+            if (filepath == string.Empty)
+            {
+                Debug.LogError("SaveSystem::No filepath received for loading binary");
+                return default(T);
+            }
 
-        Debug.Log("SaveSystem::loading xml file: " + filepath);
+            Debug.Log("SaveSystem::Loading binary file from " + filepath);
 
-        var xmlSerializer = new XmlSerializer(typeof(T));   // create the serializer
-        T data;
-
-        using (FileStream stream = new FileStream(filepath, FileMode.OpenOrCreate, FileAccess.Read))     // open filestream
-        {
+            using FileStream stream = new FileStream(filepath, FileMode.OpenOrCreate, FileAccess.Read);
             try
             {
-                data = xmlSerializer.Deserialize(stream) as T;
-                return data;
+                return serializer.Load(stream);
             }
             catch (Exception e)
             {
-                Debug.LogError($"SaveSystem::Failed loading xml file {filepath} /n{e.Message}");
+                Debug.LogError(
+                    $"SaveSystem::Failed loading file of type {typeof(T)} at {filepath} /n{e.Message}");
                 return default(T);
             }
         }
-    }
 
-    public static void SaveBinary<T>(T data, string filepath)
-	{
-        if (filepath == string.Empty || data == null)
+        private interface ISaveSerializer<T>
         {
-            Debug.LogError("SaveSystem::No data or filepath received for saving binary");
-            return;
+            public T Load(Stream stream);
+            public void Save(Stream stream, T data);
         }
 
-        Debug.Log("SaveSystem::Saving binary file: " + filepath);
-
-        var xmlSerializer = new BinaryFormatter();   // create the serializer
-
-        using (FileStream stream = new FileStream(filepath, FileMode.Create, FileAccess.Write))     // open filestream
+        private class BinarySaveSerializer<T> : ISaveSerializer<T>
         {
-            try
-            {
-                xmlSerializer.Serialize(stream, data);
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"SaveSystem::Failed saving binary file of type {typeof(T)} at {filepath} /n{e.Message}");
-            }
-        }
-    }
+            private readonly BinaryFormatter formatter = new BinaryFormatter();
 
-    public static T LoadBinary<T>(string filepath)
-	{
-        if (filepath == string.Empty)
-        {
-            Debug.LogError("SaveSystem::No filepath received for loading binary");
-            return default(T);
+            public T Load(Stream stream)
+                => (T) formatter.Deserialize(stream);
+
+            public void Save(Stream stream, T data)
+                => formatter.Serialize(stream, data);
         }
 
-        Debug.Log("SaveSystem::Loading binary file from " + filepath);
-
-        T data;
-        BinaryFormatter formatter = new BinaryFormatter();
-
-        using (FileStream stream = new FileStream(filepath, FileMode.OpenOrCreate, FileAccess.Read))
+        private class XmlSaveSerializer<T> : ISaveSerializer<T>
         {
-            try
-            {
-                data = (T)formatter.Deserialize(stream);
-                return data;
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"SaveSystem::Failed loading binary file of type {typeof(T)} at {filepath} /n{e.Message}");
-                return default(T);
-            }
+            private readonly XmlSerializer formatter = new XmlSerializer(typeof(T));
+
+            public T Load(Stream stream)
+                => (T) formatter.Deserialize(stream);
+
+            public void Save(Stream stream, T data)
+                => formatter.Serialize(stream, data);
         }
+
+        // private class YamlSaveSerializer<T> : ISaveSerializer<T>
+        // {
+        //     public T Load(Stream stream)
+        //     {
+        //         var formatter = new DeserializerBuilder()
+        //             .WithNamingConvention(new CamelCaseNamingConvention()).Build();
+        //         var reader = new StreamReader(stream);
+        //         return formatter.Deserialize<T>(reader);
+        //     }
+        //
+        //     public void Save(Stream stream, T data)
+        //     {
+        //         var formatter = new SerializerBuilder()
+        //             .WithNamingConvention(new CamelCaseNamingConvention()).Build();
+        //         var writer = new StreamWriter(stream);
+        //         formatter.Serialize(writer, data);
+        //     }
+        // }
     }
 }
